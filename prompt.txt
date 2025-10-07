@@ -1,0 +1,147 @@
+You are to build a backend API for a link-gating and sharing application called "LinkVeil" using **Express.js**, **TypeScript**, and **MongoDB**.
+
+The goal: allow any user to create and share private or gated links that can be accessed only under specific conditions.
+
+---
+
+### 🧩 CORE REQUIREMENTS
+
+#### 1. Project Setup
+- Use **TypeScript** with `tsconfig.json` properly configured for a production build.
+- Use `ts-node-dev` or `nodemon` for development.
+- Folder structure:
+/src
+/config
+db.ts
+/controllers
+linkController.ts
+requestController.ts
+userController.ts
+/models
+Link.ts
+AccessRequest.ts
+User.ts
+/routes
+linkRoutes.ts
+requestRoutes.ts
+userRoutes.ts
+/utils
+generateShortId.ts
+ApiError.ts
+catchAsync.ts
+app.ts
+server.ts
+
+yaml
+Copy code
+
+#### 2. Dependencies
+- express, mongoose, cors, dotenv, morgan, uuid, zod, bcryptjs (for basic auth), jsonwebtoken (optional), and types for all.
+- Implement strict linting and type-safety.
+
+---
+
+### 🔐 USER MANAGEMENT (Lightweight)
+- Simple pseudo-auth for MVP:
+- `POST /api/users/register` → create user with name, email, password (hashed).
+- `POST /api/users/login` → return a signed JWT or session token.
+- `GET /api/users/me` → get profile info.
+
+- Schema:
+```ts
+{
+  name: string;
+  email: string;
+  password: string;
+  createdAt: Date;
+}
+🔗 LINK MODEL
+ts
+Copy code
+{
+  title: string;
+  url: string;
+  shortId: string;
+  owner: ObjectId (User);
+  visibility: "public" | "request" | "private";
+  approvedUsers: string[]; // emails or userIds
+  clickCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+Endpoints
+POST /api/links
+
+Auth required.
+
+Validate body with Zod.
+
+Generate a short unique ID using nanoid or custom util.
+
+Return full shortened link: https://linkveil.app/l/:shortId.
+
+GET /api/links/:shortId
+
+If public → return real URL immediately.
+
+If request → return metadata but not URL; only reveal URL if user approved.
+
+If private → return 403 unless user is owner.
+
+POST /api/links/:shortId/request-access
+
+Save access request for logged-in or anonymous user (email required).
+
+Prevent duplicate requests.
+
+Return status pending or approved.
+
+POST /api/links/:shortId/approve
+
+Only link owner can approve.
+
+Adds requester to approvedUsers.
+
+GET /api/links/:shortId/stats
+
+Return click count and basic analytics.
+
+📈 ACCESS REQUEST MODEL
+ts
+Copy code
+{
+  linkId: ObjectId;
+  requesterEmail: string;
+  requesterName?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: Date;
+}
+🧠 BUSINESS LOGIC NOTES
+Increment clickCount whenever a link is accessed successfully.
+
+Middleware for auth, error handling, and async wrapper.
+
+Modularize everything — each route has a controller.
+
+Store env variables in .env:
+
+ini
+Copy code
+PORT=5000
+MONGO_URI=mongodb+srv://...
+JWT_SECRET=...
+BASE_URL=https://linkveil.app
+Apply CORS for all origins during development.
+
+✅ OUTPUT EXPECTATION
+Generate full backend code with:
+
+Correct file imports and exports.
+
+Robust error handling (ApiError + centralized handler).
+
+Type-safe interfaces for each model and request.
+
+Commented controller logic.
+
+Ready-to-run server.
