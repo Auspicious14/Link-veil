@@ -1,15 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import Link from '../models/Link';
-import { IUser } from '../models/User';
 import { generateShortId } from '../utils/generateShortId'; // Assuming this util exists
 import { catchAsync } from '../utils/catchAsync'; // Assuming this util exists
 import { ApiError } from '../utils/ApiError'; // Assuming this util exists
-
-// Extend Express Request type to include user
-interface AuthRequest extends Request {
-  user?: IUser;
-}
 
 // Zod schema for creating a link
 const createLinkSchema = z.object({
@@ -33,10 +27,10 @@ const createLinkSchema = z.object({
  * @route   POST /api/links
  * @access  Private
  */
-export const createLink = catchAsync(async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const createLink = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { title, url, visibility, approvalMode, approvedDomain } = createLinkSchema.parse(req.body);
 
-  if (!req.user) {
+  if (!(req as any).user) {
     throw new ApiError(401, 'User not authenticated');
   }
 
@@ -46,7 +40,7 @@ export const createLink = catchAsync(async (req: AuthRequest, res: Response, nex
       title,
       url,
       shortId,
-      owner: req.user._id,
+      owner: (req as any).user._id,
       visibility,
       approvalMode,
       approvedDomain: approvalMode === 'domain' ? approvedDomain : undefined,
@@ -71,7 +65,7 @@ export const createLink = catchAsync(async (req: AuthRequest, res: Response, nex
  * @route   GET /api/links/:shortId
  * @access  Public/Private/Request
  */
-export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const getLinkById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { shortId } = req.params;
   const link = await Link.findOne({ shortId });
 
@@ -79,7 +73,7 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
     throw new ApiError(404, 'Link not found');
   }
 
-  const isOwner = req.user && link.owner.toString() === req.user._id.toString();
+  const isOwner = (req as any).user && link.owner.toString() === (req as any).user._id.toString();
 
   // Public links are accessible to everyone
   if (link.visibility === 'public') {
@@ -98,7 +92,7 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
   // Request-based links require approval or ownership
   if (link.visibility === 'request') {
     // Unauthenticated users for 'request' links
-    if (!req.user) {
+    if (!(req as any).user) {
         return res.status(401).json({
             success: false,
             message: 'Authentication is required to access this link.',
@@ -109,7 +103,7 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
         });
     }
 
-    let isApproved = link.approvedUsers.includes(req.user.email);
+    let isApproved = link.approvedUsers.includes((req as any).user.email);
 
     // If not the owner and not already in the approved list, check auto-approval rules
     if (!isOwner && !isApproved) {
@@ -121,7 +115,7 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
         }
         // Domain-based approval mode
         else if (link.approvalMode === 'domain' && link.approvedDomain) {
-            const requesterDomain = req.user.email.split('@')[1];
+            const requesterDomain = (req as any).user.email.split('@')[1];
             if (requesterDomain === link.approvedDomain) {
                 grantedAutomatically = true;
             }
@@ -129,8 +123,8 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
 
         if (grantedAutomatically) {
             // Add user to the list for future access and mark as approved for this request
-            if (!link.approvedUsers.includes(req.user.email)) {
-                link.approvedUsers.push(req.user.email);
+            if (!link.approvedUsers.includes((req as any).user.email)) {
+                link.approvedUsers.push((req as any).user.email);
                 await link.save();
             }
             isApproved = true;
@@ -162,12 +156,12 @@ export const getLinkById = catchAsync(async (req: AuthRequest, res: Response, ne
  * @route   GET /api/links/:shortId/stats
  * @access  Private (Owner only)
  */
-export const getLinkStats = catchAsync(async (req: AuthRequest, res: Response, next: NextFunction) => {
-  if (!req.user) {
+export const getLinkStats = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  if (!(req as any).user) {
     throw new ApiError(401, 'User not authenticated');
   }
   const { shortId } = req.params;
-  const link = await Link.findOne({ shortId, owner: req.user.id });
+  const link = await Link.findOne({ shortId, owner: (req as any).user.id });
   if (!link) {
     throw new ApiError(404, 'Link not found or you are not the owner');
   }
