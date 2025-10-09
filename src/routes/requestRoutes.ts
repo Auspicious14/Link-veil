@@ -1,10 +1,16 @@
 import express from 'express';
-import { requestAccess, approveRequest } from '../controllers/requestController';
-import { authMiddleware } from '../utils/authMiddleware';
+import { requestAccess, approveRequest, getRequests } from '../controllers/requestController';
+import { protect, optionalAuth } from '../middlewares/authMiddleware';
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
-router.post('/:shortId/request-access', requestAccess);
-router.post('/:shortId/approve', authMiddleware, approveRequest);
+// POST /api/links/:shortId/request-access
+router.route('/request-access').post(optionalAuth, requestAccess);
+
+// POST /api/links/:shortId/approve
+router.route('/approve').post(protect, approveRequest);
+
+// GET /api/links/:shortId/requests
+router.route('/requests').get(protect, getRequests);
 
 export default router;
