@@ -6,6 +6,8 @@ export interface ILink extends Document {
   shortId: string;
   owner: Types.ObjectId;
   visibility: 'public' | 'request' | 'private';
+  approvalMode: "manual" | "auto" | "domain";
+  approvedDomain?: string;
   approvedUsers: string[];
   clickCount: number;
   createdAt: Date;
@@ -18,6 +20,8 @@ const LinkSchema: Schema = new Schema({
   shortId: { type: String, required: true, unique: true },
   owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   visibility: { type: String, enum: ['public', 'request', 'private'], default: 'public' },
+  approvalMode: { type: String, enum: ['manual', 'auto', 'domain'], default: 'manual' },
+  approvedDomain: { type: String },
   approvedUsers: [{ type: String }],
   clickCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },

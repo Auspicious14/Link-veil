@@ -1,11 +1,21 @@
 import express from 'express';
-import { createLink, getLink, getLinkStats } from '../controllers/linkController';
-import { authMiddleware } from '../utils/authMiddleware';
+import { createLink, getLinkById, getLinkStats } from '../controllers/linkController';
+import { protect } from '../middlewares/authMiddleware';
+import requestRoutes from './requestRoutes'; // Import the nested routes
 
 const router = express.Router();
 
-router.post('/', authMiddleware, createLink);
-router.get('/:shortId', getLink);
-router.get('/:shortId/stats', authMiddleware, getLinkStats);
+// Nest the request routes under a specific link shortId
+router.use('/:shortId', requestRoutes);
+
+// Main link routes
+router.route('/')
+    .post(protect, createLink);
+
+router.route('/:shortId')
+    .get(getLinkById);
+
+router.route('/:shortId/stats')
+    .get(protect, getLinkStats);
 
 export default router;

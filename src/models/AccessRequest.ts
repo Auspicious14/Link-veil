@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface IAccessRequest extends Document {
   linkId: Types.ObjectId;
   requesterEmail: string;
-  requesterName?: string;
+  requesterId?: Types.ObjectId;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: Date;
 }
@@ -11,7 +11,7 @@ export interface IAccessRequest extends Document {
 const AccessRequestSchema: Schema = new Schema({
   linkId: { type: Schema.Types.ObjectId, ref: 'Link', required: true },
   requesterEmail: { type: String, required: true },
-  requesterName: { type: String },
+  requesterId: { type: Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   createdAt: { type: Date, default: Date.now },
 });

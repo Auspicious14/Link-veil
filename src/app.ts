@@ -4,7 +4,6 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import userRoutes from "./routes/userRoutes";
 import linkRoutes from "./routes/linkRoutes";
-import requestRoutes from "./routes/requestRoutes";
 import { ApiError } from "./utils/ApiError";
 
 dotenv.config();
@@ -17,7 +16,6 @@ app.use(express.json());
 
 app.use("/api/users", userRoutes);
 app.use("/api/links", linkRoutes);
-app.use("/api/links", requestRoutes);
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof ApiError) {
