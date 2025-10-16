@@ -1,36 +1,25 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface ILink extends Document {
   title: string;
   url: string;
   shortId: string;
+  gatewayId?: string;
   owner: Types.ObjectId;
-  visibility: 'public' | 'request' | 'private';
-  approvalMode: "manual" | "auto" | "domain";
-  approvedDomain?: string;
-  approvedUsers: string[];
   clickCount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  expiresAt?: Date;
 }
 
 const LinkSchema: Schema = new Schema({
   title: { type: String, required: true },
   url: { type: String, required: true },
   shortId: { type: String, required: true, unique: true },
+  gatewayId: { type: String, unique: true, sparse: true }, // sparse allows multiple nulls
   owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  visibility: { type: String, enum: ['public', 'request', 'private'], default: 'public' },
-  approvalMode: { type: String, enum: ['manual', 'auto', 'domain'], default: 'manual' },
-  approvedDomain: { type: String },
-  approvedUsers: [{ type: String }],
   clickCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date },
 });
 
-LinkSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
-  next();
-});
+LinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
 
-export default mongoose.model<ILink>('Link', LinkSchema);
+export default model<ILink>('Link', LinkSchema);

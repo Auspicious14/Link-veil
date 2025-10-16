@@ -1,204 +1,107 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nanoid } from 'nanoid';
+import axios from 'axios';
 import Link from '../models/Link';
-import { generateShortId } from '../utils/generateShortId'; // Assuming this util exists
-import { catchAsync } from '../utils/catchAsync'; // Assuming this util exists
-import { ApiError } from '../utils/ApiError'; // Assuming this util exists
+import { catchAsync } from '../utils/catchAsync';
+import { ApiError } from '../utils/ApiError';
 
-// Zod schema for creating a link
 const createLinkSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   url: z.string().url('A valid URL is required'),
-  visibility: z.enum(['public', 'request', 'private']).optional(),
-  approvalMode: z.enum(['manual', 'auto', 'domain']).optional(),
-  approvedDomain: z.string().optional(),
-}).refine(data => {
-    if (data.approvalMode === 'domain') {
-        return !!data.approvedDomain && data.approvedDomain.length > 0;
-    }
-    return true;
-}, {
-    message: "approvedDomain is required when approvalMode is 'domain'",
-    path: ["approvedDomain"],
 });
 
-/**
- * @desc    Create a new link
- * @route   POST /api/links
- * @access  Private
- */
 export const createLink = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const { title, url, visibility, approvalMode, approvedDomain } = createLinkSchema.parse(req.body);
-
+  const { title, url } = createLinkSchema.parse(req.body);
   if (!(req as any).user) {
     throw new ApiError(401, 'User not authenticated');
   }
-
-  const shortId = generateShortId();
-
+  const shortId = nanoid(10);
+  const gatewayId = nanoid(10);
   const link = new Link({
-      title,
-      url,
-      shortId,
-      owner: (req as any).user._id,
-      visibility,
-      approvalMode,
-      approvedDomain: approvalMode === 'domain' ? approvedDomain : undefined,
+    title,
+    url,
+    shortId,
+    gatewayId,
+    owner: (req as any).user._id,
   });
-
   await link.save();
-
-  const fullUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/l/${shortId}`;
-
+  const fullUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/g/${gatewayId}`;
   res.status(201).json({
-      success: true,
-      message: "Link created successfully",
-      data: {
-        link,
-        fullUrl
-      }
+    success: true,
+    message: 'Link created successfully',
+    data: { link, fullUrl },
   });
 });
 
-/**
- * @desc    Get a link by its short ID and handle access
- * @route   GET /api/links/:shortId
- * @access  Public/Private/Request
- */
+export const accessGateway = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { gatewayId } = req.params;
+  const link = await Link.findOne({ gatewayId });
+  if (!link) {
+    throw new ApiError(404, 'Gateway not found');
+  }
+  const visitorShortId = nanoid(10);
+  const visitorLink = new Link({
+    title: link.title,
+    url: link.url,
+    shortId: visitorShortId,
+    owner: link.owner,
+    clickCount: 0,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  });
+  await visitorLink.save();
+  res.redirect(302, `/l/${visitorShortId}`);
+});
+
 export const getLinkById = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   const { shortId } = req.params;
   const link = await Link.findOne({ shortId });
-
   if (!link) {
     throw new ApiError(404, 'Link not found');
   }
-
-  const isOwner = (req as any).user && link.owner.toString() === (req as any).user._id.toString();
-
-  // Public links are accessible to everyone
-  if (link.visibility === 'public') {
-    link.clickCount++;
-    await link.save();
-    return res.status(200).json({ success: true, url: link.url });
+  if (link.expiresAt && link.expiresAt < new Date()) {
+    throw new ApiError(403, 'Link expired');
   }
-
-  // Private links are only accessible to the owner
-  if (link.visibility === 'private') {
-    if (!isOwner) {
-      throw new ApiError(403, 'This link is private and you do not have access.');
-    }
-  }
-
-  // Request-based links require approval or ownership
-  if (link.visibility === 'request') {
-    // Unauthenticated users for 'request' links
-    if (!(req as any).user) {
-        return res.status(401).json({
-            success: false,
-            message: 'Authentication is required to access this link.',
-            data: {
-                visibility: link.visibility,
-                title: link.title,
-            }
-        });
-    }
-
-    let isApproved = link.approvedUsers.includes((req as any).user.email);
-
-    // If not the owner and not already in the approved list, check auto-approval rules
-    if (!isOwner && !isApproved) {
-        let grantedAutomatically = false;
-
-        // Auto-approval mode
-        if (link.approvalMode === 'auto') {
-            grantedAutomatically = true;
-        }
-        // Domain-based approval mode
-        else if (link.approvalMode === 'domain' && link.approvedDomain) {
-            const requesterDomain = (req as any).user.email.split('@')[1];
-            if (requesterDomain === link.approvedDomain) {
-                grantedAutomatically = true;
-            }
-        }
-
-        if (grantedAutomatically) {
-            // Add user to the list for future access and mark as approved for this request
-            if (!link.approvedUsers.includes((req as any).user.email)) {
-                link.approvedUsers.push((req as any).user.email);
-                await link.save();
-            }
-            isApproved = true;
-        }
-    }
-
-    // Final check for access
-    if (!isOwner && !isApproved) {
-      return res.status(403).json({
-          success: false,
-          message: 'You do not have access to this link. Please request access from the owner.',
-          data: {
-              visibility: link.visibility,
-              title: link.title,
-              requestStatus: 'required'
-          }
-      });
-    }
-  }
-
-  // If all checks pass, grant access
   link.clickCount++;
   await link.save();
-  res.status(200).json({ success: true, url: link.url });
+  try {
+    const response = await axios.get(link.url, { responseType: 'stream' });
+    res.set(response.headers);
+    response.data.pipe(res);
+  } catch (error) {
+    throw new ApiError(500, 'Error fetching URL content');
+  }
 });
 
-/**
- * @desc    Get stats for a link
- * @route   GET /api/links/:shortId/stats
- * @access  Private (Owner only)
- */
 export const getLinkStats = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   if (!(req as any).user) {
     throw new ApiError(401, 'User not authenticated');
   }
   const { shortId } = req.params;
-  const link = await Link.findOne({ shortId, owner: (req as any).user.id });
+  const link = await Link.findOne({ shortId, owner: (req as any).user._id });
   if (!link) {
     throw new ApiError(404, 'Link not found or you are not the owner');
   }
   res.status(200).json({
     success: true,
-    data: {
-      clickCount: link.clickCount,
-      visibility: link.visibility,
-      approvalMode: link.approvalMode
-    }
+    data: { clickCount: link.clickCount },
   });
 });
 
-/**
- * @desc    Get all links for the authenticated user
- * @route   GET /api/links
- * @access  Private
- */
 export const getUserLinks = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
   if (!(req as any).user) {
     throw new ApiError(401, 'User not authenticated');
   }
-  
   const links = await Link.find({ owner: (req as any).user._id });
-  
-  // Generate full URLs for each link
   const linksWithFullUrls = links.map(link => {
-    const fullUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/l/${link.shortId}`;
-    return {
-      ...link.toObject(),
-      fullUrl
-    };
+    const fullUrl = link.gatewayId
+      ? `${process.env.BASE_URL || 'http://localhost:3000'}/g/${link.gatewayId}`
+      : `${process.env.BASE_URL || 'http://localhost:3000'}/l/${link.shortId}`;
+    return { ...link.toObject(), fullUrl };
   });
-
   res.status(200).json({
     success: true,
     count: links.length,
-    data: linksWithFullUrls
+    data: linksWithFullUrls,
   });
 });

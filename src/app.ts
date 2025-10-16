@@ -4,6 +4,7 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import userRoutes from "./routes/userRoutes";
 import linkRoutes from "./routes/linkRoutes";
+import { accessGateway, getLinkById } from "./controllers/linkController";
 import { ApiError } from "./utils/ApiError";
 
 dotenv.config();
@@ -13,6 +14,10 @@ const app = express();
 app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
+
+// Gateway and cloaked link routes
+app.get("/g/:gatewayId", accessGateway);
+app.get("/l/:shortId", getLinkById);
 
 app.use("/api/users", userRoutes);
 app.use("/api/links", linkRoutes);
