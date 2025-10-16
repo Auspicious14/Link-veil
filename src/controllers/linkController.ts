@@ -174,3 +174,31 @@ export const getLinkStats = catchAsync(async (req: Request, res: Response, next:
     }
   });
 });
+
+/**
+ * @desc    Get all links for the authenticated user
+ * @route   GET /api/links
+ * @access  Private
+ */
+export const getUserLinks = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  if (!(req as any).user) {
+    throw new ApiError(401, 'User not authenticated');
+  }
+  
+  const links = await Link.find({ owner: (req as any).user._id });
+  
+  // Generate full URLs for each link
+  const linksWithFullUrls = links.map(link => {
+    const fullUrl = `${process.env.BASE_URL || 'http://localhost:3000'}/l/${link.shortId}`;
+    return {
+      ...link.toObject(),
+      fullUrl
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    count: links.length,
+    data: linksWithFullUrls
+  });
+});

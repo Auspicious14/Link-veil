@@ -1,5 +1,5 @@
 import express from 'express';
-import { createLink, getLinkById, getLinkStats } from '../controllers/linkController';
+import { createLink, getLinkById, getLinkStats, getUserLinks } from '../controllers/linkController';
 import { protect } from '../middlewares/authMiddleware';
 import requestRoutes from './requestRoutes'; // Import the nested routes
 
@@ -11,6 +11,9 @@ router.use('/:shortId', requestRoutes);
 // Main link routes
 router.route('/')
     .post(protect, createLink);
+
+router.route('/')
+    .get(protect, getUserLinks);
 
 router.route('/:shortId')
     .get(getLinkById);
