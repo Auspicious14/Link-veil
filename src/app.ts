@@ -15,6 +15,10 @@ app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
 
+// Home route
+app.get("/", (req: Request,  res: Response) => {
+  res.send("Backend is working")
+})
 // Gateway and cloaked link routes
 app.get("/g/:gatewayId", accessGateway);
 app.get("/l/:shortId", getLinkById);
