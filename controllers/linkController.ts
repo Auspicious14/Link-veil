@@ -41,6 +41,7 @@ export const createLink = catchAsync(
 export const accessGateway = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { gatewayId } = req.params;
+
     const link = await Link.findOne({ gatewayId });
     if (!link) {
       throw new ApiError(404, "Gateway not found");
@@ -55,7 +56,10 @@ export const accessGateway = catchAsync(
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     await visitorLink.save();
-    res.redirect(302, `/l/${visitorShortId}`);
+    res.redirect(
+      302,
+      `${process.env.BASE_URL || "http://localhost:4000"}/l/${visitorShortId}`
+    );
   }
 );
 
@@ -105,19 +109,34 @@ export const getUserLinks = catchAsync(
     }
     const links = await Link.find({ owner: (req as any).user._id });
     const linksWithFullUrls = links.map((link) => {
-      const fullUrl = link.gatewayId
-        ? `${process.env.BASE_URL || "http://localhost:3000"}/g/${
-            link.gatewayId
-          }`
-        : `${process.env.BASE_URL || "http://localhost:3000"}/l/${
-            link.shortId
-          }`;
+      const fullUrl = `${process.env.BASE_URL || "http://localhost:4000"}/g/${
+        link.gatewayId
+      }`;
+
       return { ...link.toObject(), fullUrl };
     });
     res.status(200).json({
       success: true,
       count: links.length,
       data: linksWithFullUrls,
+    });
+  }
+);
+
+export const deleteUserLink = catchAsync(
+  async (req: Request, res: Response) => {
+    if (!(req as any).user) {
+      throw new ApiError(401, "User not authenticated");
+    }
+    const { shortId } = req.params;
+    const link = await Link.findOne({ shortId, owner: (req as any).user._id });
+    if (!link) {
+      throw new ApiError(404, "Link not found or you are not the owner");
+    }
+    await link.deleteOne();
+    res.status(200).json({
+      success: true,
+      message: "Link deleted successfully",
     });
   }
 );

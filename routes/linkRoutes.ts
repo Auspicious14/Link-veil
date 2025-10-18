@@ -2,6 +2,7 @@ import express from "express";
 import {
   accessGateway,
   createLink,
+  deleteUserLink,
   getLinkById,
   getLinkStats,
   getUserLinks,
@@ -15,6 +16,8 @@ router.route("/").post(protect, createLink).get(protect, getUserLinks);
 router.route("/:shortId").get(getLinkById);
 
 router.route("/:shortId/stats").get(protect, getLinkStats);
+
+router.route("/:shortId").delete(protect, deleteUserLink);
 
 router.route("/g/:gatewayId").get(accessGateway);
 
